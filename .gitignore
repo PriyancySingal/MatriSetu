@@ -1,25 +1,30 @@
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
+
+# Python virtual environments
 venv/
 .venv/
 __pycache__/
 *.py[cod]
+
+# Node.js
 node_modules/
 dist/
 build/
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# Local tools
 ngrok.exe
 
+# Local databases
 *.db
 *.sqlite
 *.sqlite3
-# Environment variables and secrets
-# Python virtual environments
-# Node.js
-# OS files
-Thumbs.db
-# Local tools
-# Local databases
+
 # VS Code local MCP credentials
 .vscode/mcp.json
