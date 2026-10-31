@@ -54,7 +54,7 @@ async def _call_meko_async(tool_name: str, arguments: dict) -> Any:
         async with streamable_http_client(
             config.MEKO_MCP_URL,
             http_client=client,
-        ) as (read_stream, write_stream, _):
+        ) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
                 return await session.call_tool(tool_name, arguments)
