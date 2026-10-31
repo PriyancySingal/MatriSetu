@@ -651,6 +651,7 @@ LOW      = everything else
 | Maps | Google Maps Geocoding API | Address to coordinates, static map images, navigation links |
 | Reports | fpdf2 | 7-page NHM monthly PDF with no external dependencies |
 | Medical Data | WHO + NHM + FOGSI + ICMR | Government-backed clinical guidelines |
+| Shared Memory | Meko MCP (optional) | De-identified recent triage continuity; can only raise urgency |
 
 ---
 
@@ -680,6 +681,7 @@ MatriSetu/
 |-- myths.py            FOGSI myths database
 |-- tips.py             Weekly pregnancy tips
 |-- config.py           Environment variable config
+|-- meko_client.py      Optional, de-identified Meko triage memory
 |-- requirements.txt
 |-- Procfile            Railway process file
 ```
@@ -721,6 +723,9 @@ psycopg2-binary
 requests
 gunicorn
 fpdf2
+python-dotenv
+mcp==2.3.0
+httpx2>=2.10.0
 ```
 
 ---
@@ -739,6 +744,22 @@ fpdf2
 | DHO_PHONE | DHO WhatsApp for Level 3 escalation | whatsapp:+91xxxxxxx |
 | CRON_SECRET | Header secret for cron endpoints | any-random-string |
 | PORT | Server port | 8080 |
+| MEKO_ENABLED | Enable optional de-identified triage memory | false |
+| MEKO_API_KEY | Meko API key; keep server-side only | Set in deployment secrets |
+| MEKO_MCP_URL | Meko MCP endpoint | https://mcp.mekodata.ai/mcp |
+| MEKO_PATIENTS_DATAPACK | Patient-memory datapack ID | Set in deployment secrets |
+| MEKO_DISTRICT_DATAPACK | District-memory datapack ID | Set in deployment secrets |
+| MEKO_PATIENT_SALT | Secret salt for pseudonymous patient IDs | Set in deployment secrets |
+| MEKO_TIMEOUT_SECONDS | Maximum time per Meko operation | 20 |
+
+Meko is optional and fail-open. MatriSetu sends only a salted patient identifier
+for conversation lookup and structured triage metadata (risk level, pregnancy
+week, postpartum flag, and timestamp); patient-authored messages, names, phone
+numbers, and location are not sent. Recalled records older than 24 hours or
+marked resolved cannot raise a new triage result. Meko may raise urgency but
+never lowers the clinical analyzer's result. The browser does not call Meko
+directly; patient responses and ASHA alerts continue through the existing
+WhatsApp and dashboard flows.
 
 ---
 

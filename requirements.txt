@@ -7,3 +7,7 @@ psycopg2-binary
 sqlalchemy
 gunicorn
 psycopg[binary]
+fpdf2
+python-dotenv
+mcp==2.3.0
+httpx2>=2.10.0

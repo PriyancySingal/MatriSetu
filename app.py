@@ -19,12 +19,19 @@ from twilio.rest import Client
 
 from config   import PORT, DEBUG, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN
 from voice    import transcribe_voice_note
-from analyzer import analyze, detect_language_from_text as detect_language
+from analyzer import (
+    analyze, detect_language_from_text as detect_language,
+    get_response_template,
+)
 from alerts   import save_alert
 from dashboard import render_dashboard
 from tracker  import get_progress_update, is_tracker_request
 from admin    import render_admin_login, render_admin_panel
 from escalation import start_escalation_engine
+from meko_client import (
+    cached_triage_memory_level, highest_triage_level,
+    queue_triage_memory_record, start_triage_memory_lookup,
+)
 
 from database import (
     # Core
@@ -643,6 +650,11 @@ def whatsapp_reply():
         # ── Recovery confirmation ─────────────────────────────────
         recovery = handle_recovery_confirmation(incoming_msg)
         if recovery == "BETTER":
+            queue_triage_memory_record(
+                sender, "GREEN", user["week"],
+                postpartum=user.get("status") == "postpartum",
+                status="resolved",
+            )
             alert = get_alert_by_patient_phone(sender)
             if alert and alert["status"] == "Attended":
                 update_alert_status(alert["id"], "Resolved")
@@ -656,6 +668,10 @@ def whatsapp_reply():
             return str(response)
 
         if recovery == "NOT_WELL":
+            queue_triage_memory_record(
+                sender, "RED", user["week"],
+                postpartum=user.get("status") == "postpartum",
+            )
             save_asha_alert_db(
                 sender, user["name"], user["week"],
                 "FOLLOW UP: Patient still not feeling well",
@@ -721,14 +737,29 @@ def whatsapp_reply():
 
         # ── AI symptom analysis ───────────────────────────────────
         is_postpartum = user.get("status") == "postpartum"
+        remembered_level = cached_triage_memory_level(sender)
+        start_triage_memory_lookup(sender)
         level, reply, alert_needed = analyze(
             incoming_msg, user["week"],
             language=user.get("language", "Hindi"),
             postpartum=is_postpartum
         )
+        final_level = highest_triage_level(level, remembered_level)
+        if final_level != level:
+            level = final_level
+            reply = get_response_template(
+                level, user.get("language", "Hindi"), user["week"]
+            )
+            alert_needed = "YES" if level == "RED" else alert_needed
+
+        if level in {"AMBER", "RED"}:
+            queue_triage_memory_record(
+                sender, level, user["week"], postpartum=is_postpartum
+            )
+
         save_symptom_log(sender, user["week"], incoming_msg, level)
 
-        if level == "RED":
+        if level == "RED" or str(alert_needed).strip().upper() == "YES":
             maps_link = _maps_link(
                 user.get("address", ""), user.get("village", "")
             )
