@@ -7,9 +7,6 @@ import os
 import requests
 from groq import Groq
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-
-
 def transcribe_voice_note(media_url, twilio_sid, twilio_token):
     """
     Downloads voice note from Twilio and transcribes it using Groq Whisper.
@@ -33,7 +30,7 @@ def transcribe_voice_note(media_url, twilio_sid, twilio_token):
             f.write(response.content)
 
         # Step 3 — Transcribe with Groq Whisper
-        client = Groq(api_key=GROQ_API_KEY)
+        client = Groq()
 
         with open(audio_path, "rb") as audio_file:
             transcription = client.audio.transcriptions.create(

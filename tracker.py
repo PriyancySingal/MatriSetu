@@ -8,8 +8,6 @@ import os
 from groq import Groq
 from health_log import get_health_log, get_risk_score, get_symptom_pattern
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-
 BABY_SIZE = {
     4:  ("poppy seed", "khus khus ka beej", "0.1 cm"),
     5:  ("sesame seed", "til ka beej", "0.2 cm"),
@@ -93,7 +91,7 @@ def get_progress_update(week, name, phone, language="Hindi"):
             break
 
     try:
-        client = Groq(api_key=GROQ_API_KEY)
+        client = Groq()
 
         prompt = f"""You are MatriSetu, a warm and caring maternal health 
 companion for Indian women.
@@ -133,8 +131,11 @@ Be warm, personal, and caring — like a trusted friend who knows her story.
 Max 10 lines. Use emoji naturally."""
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            max_tokens=500,
+            model=(
+                os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b").strip()
+                or "openai/gpt-oss-120b"
+            ),
+            max_completion_tokens=1500,
             temperature=0.4,
             messages=[{"role": "user", "content": prompt}]
         )

@@ -78,7 +78,7 @@ Woman sends symptom on WhatsApp (text / voice note / image)
 [If visual]     Ask for photo → forward to ASHA worker
             |
             v
-Groq Llama 3.3 70B analyzes vs WHO ANC 2016 + NHM Module 6
+Groq GPT-OSS 120B analyzes vs WHO ANC 2016 + NHM Module 6
             |
     ________|________
    |        |        |
@@ -116,7 +116,7 @@ Patient receives WhatsApp: "Kya aap ab theek hain?"
        |                   |                  |
 +------v------+  +---------v------+  +--------v---------+
 |  GROQ AI    |  | GROQ WHISPER   |  |   POSTGRESQL     |
-| Llama 3.3   |  | Voice to Text  |  |   Railway DB     |
+| GPT-OSS 120B|  | Voice to Text  |  |   Railway DB     |
 | Triage AI   |  | Hindi + 100+   |  | 16 tables, 5-tier|
 +-------------+  +----------------+  +------------------+
        |
@@ -322,7 +322,7 @@ Patient sends message
     +-- Visual symptom? --> Ask for photo
     |
     v
-Groq Llama 3.3 70B analyzes (WHO ANC 2016 + NHM Module 6)
+Groq GPT-OSS 120B analyzes (WHO ANC 2016 + NHM Module 6)
     |
     v
 GREEN  -- Reassurance + tip
@@ -640,7 +640,7 @@ LOW      = everything else
 
 | Layer | Technology | Why |
 |---|---|---|
-| AI Triage | Groq Llama 3.3 70B | Fastest LLM, 100+ Indian languages, free tier |
+| AI Triage | Groq GPT-OSS 120B (configurable with `GROQ_MODEL`) | Default Groq chat model |
 | Voice AI | Groq Whisper Large V3 | Best Hindi and Indian language accuracy |
 | Backend | Python + Flask | Lightweight, no triple-quote strings (version safe) |
 | Database | PostgreSQL on Railway | Permanent storage, DPDP 2023 compliant |
@@ -738,6 +738,7 @@ httpx2>=2.10.0
 | TWILIO_ACCOUNT_SID | Twilio Account SID | ACxxxxxxxxxxxxxxxxx |
 | TWILIO_AUTH_TOKEN | Twilio Auth Token | xxxxxxxxxxxxxxxx |
 | GROQ_API_KEY | Groq API Key | gsk_xxxxxxxxxxxxxxxxx |
+| GROQ_MODEL | Groq chat model ID | openai/gpt-oss-120b |
 | GOOGLE_MAPS_API_KEY | Maps geocoding + static maps | AIzaxxxxxxxxxxxxxx |
 | SECRET_KEY | Flask session secret | matrisetu2026secret |
 | TWILIO_SMS_FROM | SMS fallback number | +91xxxxxxxxxx |

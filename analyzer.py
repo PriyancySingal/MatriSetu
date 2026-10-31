@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────────────
 # MatriSetu Symptom Analyzer
-# Powered by Groq AI (Llama 3.3) — FREE, fast, no credit card
+# Powered by Groq AI
 # Backed by WHO + NHM + FOGSI medical guidelines
 # Language: uses user's chosen language, falls back to auto-detect
 # ─────────────────────────────────────────────────────────────────
@@ -10,9 +10,6 @@ from groq import Groq
 from symptoms import WHO_DANGER_SIGNS, NHM_MODERATE_SIGNS
 from myths import PREGNANCY_MYTHS
 from tips import get_weekly_tip
-
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-
 
 # ─────────────────────────────────────────────────────────────────
 # LANGUAGE DETECTION
@@ -333,13 +330,16 @@ def analyze(message, pregnancy_week, language=None, postpartum=False):
 
     # ── Step 3: Try Groq AI with language-locked prompt ──────────
     try:
-        client = Groq(api_key=GROQ_API_KEY)
+        client = Groq()
 
         system_prompt = build_prompt_with_language(language)
 
         chat = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            max_tokens=350,
+            model=(
+                os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b").strip()
+                or "openai/gpt-oss-120b"
+            ),
+            max_completion_tokens=1500,
             temperature=0.2,
             messages=[
                 {
@@ -398,10 +398,8 @@ def analyze(message, pregnancy_week, language=None, postpartum=False):
         if level in ["RED", "AMBER", "GREEN", "MYTH", "TIP"] and ai_message:
             return level, ai_message, asha_alert
 
-        # If parsing failed but we have a result — use full result
-        if result and len(result) > 20:
-            print(f"[Parse fallback] Using full response")
-            return "GREEN", result, "NO"
+        if result:
+            print("[Parse fallback] Invalid triage format; using rule-based analysis")
 
     except Exception as e:
         print(f"[Groq AI error — using rule-based fallback]: {e}")

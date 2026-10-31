@@ -7,16 +7,13 @@
 import os
 from groq import Groq
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-
-
 def get_weekly_tip(week, language="Hindi"):
     """
     Generates weekly tip in the woman's language using Groq AI.
     Falls back to English if AI fails.
     """
     try:
-        client = Groq(api_key=GROQ_API_KEY)
+        client = Groq()
 
         prompt = f"""You are MatriSetu, a maternal health companion for Indian women.
 
@@ -28,8 +25,11 @@ Base it on WHO ANC 2016 and NHM India guidelines.
 End with an encouraging line."""
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            max_tokens=300,
+            model=(
+                os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b").strip()
+                or "openai/gpt-oss-120b"
+            ),
+            max_completion_tokens=1000,
             temperature=0.3,
             messages=[{"role": "user", "content": prompt}]
         )

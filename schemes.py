@@ -15,9 +15,6 @@
 import os
 from groq import Groq
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-
-
 # ─────────────────────────────────────────────────────────────────
 # SCHEME DATABASE
 # All schemes with eligibility, benefits, how to claim
@@ -357,7 +354,7 @@ def explain_scheme_with_ai(scheme_key, question, language="Hindi"):
         return get_scheme_response(question, 0, "aap", language)
 
     try:
-        client = Groq(api_key=GROQ_API_KEY)
+        client = Groq()
 
         prompt = f"""You are MatriSetu, helping a pregnant rural Indian woman 
 understand government health schemes.
@@ -375,8 +372,11 @@ Answer in {language} only. Be simple, warm, and specific.
 Maximum 5 sentences. Tell her exactly what to do next."""
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            max_tokens=200,
+            model=(
+                os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b").strip()
+                or "openai/gpt-oss-120b"
+            ),
+            max_completion_tokens=1000,
             temperature=0.2,
             messages=[{"role": "user", "content": prompt}]
         )
