@@ -1,0 +1,150 @@
+/* MatriSetu 3D theme v2 - light green & white. Visual layer only. */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+html.m3-app{background:linear-gradient(160deg,#f2faf6 0%,#e3f3ec 55%,#f6faf8 100%) fixed!important;min-height:100%;--bg:transparent;--card:0 10px 30px rgba(8,80,65,.10);--card-shadow:0 10px 30px rgba(8,80,65,.10);--card-hover:0 20px 46px rgba(8,80,65,.20)}
+#m3-canvas{display:block;width:100%;height:100%;opacity:0;transition:opacity 1.4s ease}
+#m3-canvas.on{opacity:1}
+.m3-bg-stage{position:fixed;inset:0;z-index:-1;pointer-events:none}
+html.m3-app .m3-bg-stage{opacity:.9}
+html.m3-app body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(100% 80% at 50% 30%,transparent 55%,rgba(8,80,65,.06) 100%)}
+html.m3-app ::-webkit-scrollbar{width:10px;height:10px}html.m3-app ::-webkit-scrollbar-thumb{background:rgba(18,163,122,.45);border-radius:9px}
+html.m3-app .stat-card,
+html.m3-app .stat,
+html.m3-app .kpi,
+html.m3-app .alert-card,
+html.m3-app .patient-row,
+html.m3-app .child-card,
+html.m3-app .pp-card,
+html.m3-app .perf-card,
+html.m3-app .scheme-card,
+html.m3-app .chart-card,
+html.m3-app .card,
+html.m3-app .tbl-wrap,
+html.m3-app .table-wrap,
+html.m3-app .asha-perf-card,
+html.m3-app .anc-card,
+html.m3-app .lb-row,
+html.m3-app .perf-metric,
+html.m3-app .db-metric,
+html.m3-app .export-card,
+html.m3-app .village-group,
+html.m3-app .esc-form,
+html.m3-app .visit-form,
+html.m3-app .donut-wrap,
+html.m3-app .anc-timeline,
+html.m3-app .status-flow,
+html.m3-app .metric-row{background:rgba(255,255,255,.68)!important;border:1px solid rgba(8,80,65,.13)!important;border-radius:20px!important;-webkit-backdrop-filter:blur(8px) saturate(120%);backdrop-filter:blur(8px) saturate(120%);box-shadow:0 10px 30px rgba(8,80,65,.10),inset 0 1px 0 rgba(255,255,255,.95)!important;transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s}
+html.m3-app .stat-card:hover,
+html.m3-app .stat:hover,
+html.m3-app .kpi:hover,
+html.m3-app .chart-card:hover,
+html.m3-app .perf-card:hover,
+html.m3-app .asha-perf-card:hover,
+html.m3-app .scheme-card:hover,
+html.m3-app .child-card:hover,
+html.m3-app .export-card:hover{border-color:rgba(18,163,122,.45)!important;box-shadow:0 20px 46px rgba(8,80,65,.20),0 0 0 4px rgba(18,163,122,.07),inset 0 1px 0 #fff!important}
+html.m3-app .alert-card{border-left:5px solid #12a37a!important}
+html.m3-app .m3-tilt{transform-style:preserve-3d;will-change:transform}
+html.m3-app .stat-num,
+html.m3-app .kpi-num,
+html.m3-app .stat-number,
+html.m3-app .db-num,
+html.m3-app .perf-num,
+html.m3-app .donut-num{font-weight:700!important;letter-spacing:-.02em}
+html.m3-app .stat-number,
+html.m3-app .kpi-num{filter:brightness(.62) saturate(1.35)}
+html.m3-app .header,
+html.m3-app .topbar{background:linear-gradient(120deg,#053d31 0%,#085041 38%,#0a6b52 72%,#12a37a 100%)!important;color:#fff!important;border-bottom:none!important;box-shadow:0 12px 34px rgba(8,80,65,.28)}
+html.m3-app .header h1,
+html.m3-app .header-title,
+html.m3-app .topbar h1{color:#fff!important;font-weight:700!important;letter-spacing:-.01em}
+html.m3-app .header-sub,
+html.m3-app .header-eyebrow,
+html.m3-app .header-eye,
+html.m3-app .header-role,
+html.m3-app .header p,
+html.m3-app .topbar span{color:#d5f5e8!important;opacity:1!important}
+html.m3-app .header-bg-circle,
+html.m3-app .hbg{background:rgba(255,255,255,.07)!important}
+html.m3-app .header-pill,
+html.m3-app .hpill,
+html.m3-app .hmeta>*{background:rgba(255,255,255,.14)!important;border:1px solid rgba(255,255,255,.28)!important;color:#fff!important}
+html.m3-app .header-pill.danger{background:rgba(255,90,90,.55)!important;border-color:rgba(255,190,190,.85)!important}
+html.m3-app .logout{color:#ffd2d2!important}
+html.m3-app .tab-nav,
+html.m3-app .tab-bar{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.82)!important;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-bottom:1px solid rgba(8,80,65,.12)!important;box-shadow:0 6px 20px rgba(8,80,65,.07)}
+html.m3-app .tab-btn,
+html.m3-app .tab{color:#3d6b5d!important;background:transparent!important;border:none!important;border-radius:12px 12px 0 0!important;transition:color .2s,background .2s,box-shadow .2s!important}
+html.m3-app .tab-btn:hover,
+html.m3-app .tab:hover{color:#085041!important;background:rgba(18,163,122,.09)!important}
+html.m3-app .tab-btn.active,
+html.m3-app .tab.active{color:#085041!important;background:linear-gradient(180deg,rgba(18,163,122,0),rgba(18,163,122,.14))!important;box-shadow:inset 0 -3px 0 #12a37a!important}
+html.m3-app .btn,
+html.m3-app .fab{border-radius:12px!important;box-shadow:0 6px 16px rgba(8,80,65,.2);transition:transform .15s,box-shadow .2s,filter .2s!important}
+html.m3-app .btn:hover{transform:translateY(-2px);filter:brightness(1.06);box-shadow:0 12px 26px rgba(8,80,65,.28)}
+html.m3-app .btn-primary,
+html.m3-app .btn-green,
+html.m3-app .btn-teal{background:linear-gradient(135deg,#0a6b52,#12a37a)!important;color:#fff!important}
+html.m3-app .fab{background:linear-gradient(135deg,#0a6b52,#12a37a)!important;color:#fff!important;box-shadow:0 10px 30px rgba(8,80,65,.4)}
+html.m3-app input,
+html.m3-app select,
+html.m3-app textarea,
+html.m3-app .form-ctrl{background:rgba(255,255,255,.92)!important;color:#12332a!important;border:1px solid rgba(8,80,65,.22)!important;border-radius:12px!important;transition:border-color .2s,box-shadow .2s}
+html.m3-app input:focus,
+html.m3-app select:focus,
+html.m3-app textarea:focus,
+html.m3-app .form-ctrl:focus{outline:none;border-color:#12a37a!important;box-shadow:0 0 0 3px rgba(18,163,122,.22)!important}
+html.m3-app input::placeholder,
+html.m3-app textarea::placeholder{color:#8aa69b!important}
+html.m3-app th{background:#e4f4ec!important;color:#085041!important}
+html.m3-app td{border-bottom:1px solid #e1efe8!important;color:#25483d!important}
+html.m3-app tr:hover td{background:rgba(18,163,122,.07)!important}
+html.m3-app body{background:transparent!important;color:#12332a;font-family:'Poppins','DM Sans','Segoe UI',system-ui,sans-serif!important}
+html.m3-app .section-title,
+html.m3-app .export-card h4,
+html.m3-app .village-name{color:#085041!important}
+html.m3-app .stat-label,
+html.m3-app .kpi-lbl,
+html.m3-app .export-card p,
+html.m3-app .footer{color:#5b7a70!important}
+html.m3-app .asha-chip{background:#e8f6ef!important;border:1px solid rgba(8,80,65,.18)!important;color:#1d4f41!important}
+html.m3-app .perf-bar{background:#dcefe6!important}
+html.m3-app .perf-fill{background:linear-gradient(90deg,#0a6b52,#12a37a)!important}
+html.m3-app .badge-active,
+html.m3-app .badge-green{background:#d6f3e6!important;color:#0a6b52!important}
+html.m3-app .badge-inactive,
+html.m3-app .badge-red{background:#fde1e1!important;color:#b42318!important}
+html.m3-app .badge-amber{background:#fdebc8!important;color:#92400e!important}
+html.m3-app .badge-purple{background:#ece4ff!important;color:#5b2fbf!important}
+html.m3-app .badge-blue{background:#dbeafe!important;color:#1d4ed8!important}
+html.m3-app .msg-success{background:#d6f3e6!important;color:#0a6b52!important;border:1px solid rgba(18,163,122,.35)}
+html.m3-app .msg-error{background:#fde1e1!important;color:#b42318!important;border:1px solid rgba(220,60,60,.3)}
+html.m3-app .tab-bar .tab{background:rgba(255,255,255,.55)!important}
+html.m3-app .tab-bar .tab.active{background:#fff!important}
+html.m3-app .step-node,
+html.m3-app .step{background:#eef7f2!important;color:#5b7a70!important;border:1px solid rgba(8,80,65,.12)!important}
+html.m3-app .step-done{background:linear-gradient(135deg,#0a6b52,#12a37a)!important;color:#fff!important;border-color:transparent!important}
+html.m3-app .danger-banner{border-radius:16px!important}
+html.m3-app ::selection{background:#12a37a;color:#fff}
+/* ---------- landing page ---------- */
+html.m3-landing .hero{position:relative;overflow:hidden}
+html.m3-landing .hero::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(60% 90% at 78% 50%,rgba(125,220,188,.28),transparent 70%)}
+html.m3-landing .hero-container{position:relative;z-index:2}
+html.m3-landing .m3-hero-stage{position:absolute;top:0;right:0;width:52%;height:100%;z-index:1;cursor:grab}
+html.m3-landing .m3-hero-stage:active{cursor:grabbing}
+html.m3-landing .portal-card{transform-style:preserve-3d}
+html.m3-landing .portal-card.m3-tilt{transition:transform .2s ease,box-shadow .3s}
+@media (max-width:900px){html.m3-landing .m3-hero-stage{width:100%;opacity:.4;pointer-events:none}}
+
+/* ---------- login pages ---------- */
+html.m3-login{background:linear-gradient(135deg,#053d31 0%,#085041 45%,#0a6b52 100%) fixed!important;min-height:100%}
+html.m3-login body{background:transparent!important}
+html.m3-login .box{background:rgba(255,255,255,.94)!important;border:1px solid rgba(255,255,255,.6)!important;border-radius:24px!important;box-shadow:0 30px 80px rgba(2,30,24,.45)!important;position:relative;z-index:2;color:#12332a!important}
+html.m3-login .box h2,html.m3-login .box h1{color:#085041!important}
+html.m3-login .box p,html.m3-login .back{color:#5b7a70!important}
+html.m3-login .box input{background:#fff!important;color:#12332a!important;border:1.5px solid #d5e8df!important;border-radius:12px!important}
+html.m3-login .box input:focus{border-color:#12a37a!important;box-shadow:0 0 0 3px rgba(18,163,122,.22)}
+html.m3-login .box button{background:linear-gradient(135deg,#0a6b52,#12a37a)!important;border-radius:12px!important;box-shadow:0 10px 24px rgba(8,80,65,.35);transition:transform .15s,filter .2s}
+html.m3-login .box button:hover{transform:translateY(-2px);filter:brightness(1.07)}
+html.m3-login .m3-bg-stage{z-index:0}
+@media (max-width:700px){html.m3-app .m3-bg-stage{opacity:.55}html.m3-login .m3-bg-stage{opacity:.5}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
