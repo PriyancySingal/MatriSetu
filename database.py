@@ -34,6 +34,29 @@ def init_db():
 
     with engine.connect() as conn:
 
+        conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS meko_events ("
+            "id SERIAL PRIMARY KEY,"
+            "phone TEXT NOT NULL,"
+            "patient_hash TEXT NOT NULL,"
+            "asha_id TEXT,"
+            "event_type TEXT NOT NULL CHECK (event_type IN "
+            "('recall','store','correct','forget','resolve')),"
+            "level_ai TEXT,"
+            "level_memory TEXT,"
+            "level_final TEXT,"
+            "memory_id TEXT,"
+            "ok BOOLEAN NOT NULL DEFAULT FALSE,"
+            "latency_ms INTEGER,"
+            "note TEXT,"
+            "created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+            ")"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_meko_events_asha_created "
+            "ON meko_events (asha_id, created_at DESC)"
+        ))
+
         # TIER 1: Admins
         conn.execute(text(
             "CREATE TABLE IF NOT EXISTS admins ("
@@ -1859,3 +1882,118 @@ def get_postpartum_patients_due(asha_id):
     except Exception as e:
         print("Get postpartum patients due error: " + str(e))
         return []
+
+
+_MEKO_EVENT_TYPES = {"recall", "store", "correct", "forget", "resolve"}
+
+
+def log_meko_event(
+    phone,
+    patient_hash,
+    asha_id=None,
+    event_type="recall",
+    level_ai=None,
+    level_memory=None,
+    level_final=None,
+    memory_id=None,
+    ok=False,
+    latency_ms=None,
+    note=None,
+):
+    """Best-effort local audit event; never let logging affect patient flows."""
+    if not engine or event_type not in _MEKO_EVENT_TYPES:
+        return False
+    try:
+        with engine.connect() as conn:
+            conn.execute(text(
+                "INSERT INTO meko_events "
+                "(phone,patient_hash,asha_id,event_type,level_ai,level_memory,"
+                "level_final,memory_id,ok,latency_ms,note) "
+                "VALUES (:phone,:patient_hash,:asha_id,:event_type,:level_ai,"
+                ":level_memory,:level_final,:memory_id,:ok,:latency_ms,:note)"
+            ), {
+                "phone": phone,
+                "patient_hash": patient_hash,
+                "asha_id": asha_id,
+                "event_type": event_type,
+                "level_ai": level_ai,
+                "level_memory": level_memory,
+                "level_final": level_final,
+                "memory_id": memory_id,
+                "ok": bool(ok),
+                "latency_ms": max(0, int(latency_ms)) if latency_ms is not None else None,
+                "note": str(note)[:240] if note else None,
+            })
+            conn.commit()
+        return True
+    except Exception as e:
+        print("Log Meko event error: " + type(e).__name__)
+        return False
+
+
+def get_meko_events(asha_id, phone=None, limit=20):
+    if not engine:
+        return []
+    try:
+        safe_limit = max(1, min(int(limit), 500))
+        query = (
+            "SELECT id,phone,patient_hash,asha_id,event_type,level_ai,"
+            "level_memory,level_final,memory_id,ok,latency_ms,note,created_at "
+            "FROM meko_events WHERE asha_id=:asha_id"
+        )
+        params = {"asha_id": asha_id, "limit": safe_limit}
+        if phone is not None:
+            query += " AND phone=:phone"
+            params["phone"] = phone
+        query += " ORDER BY created_at DESC,id DESC LIMIT :limit"
+        with engine.connect() as conn:
+            rows = conn.execute(text(query), params).fetchall()
+        return [{
+            "id": row.id,
+            "phone": row.phone,
+            "patient_hash": row.patient_hash,
+            "asha_id": row.asha_id,
+            "event_type": row.event_type,
+            "level_ai": row.level_ai,
+            "level_memory": row.level_memory,
+            "level_final": row.level_final,
+            "memory_id": row.memory_id,
+            "ok": bool(row.ok),
+            "latency_ms": row.latency_ms,
+            "note": row.note,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        } for row in rows]
+    except Exception as e:
+        print("Get Meko events error: " + type(e).__name__)
+        return []
+
+
+def get_meko_event_summary(asha_id):
+    if not engine:
+        return {}
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(text(
+                "SELECT "
+                "COUNT(*) FILTER (WHERE event_type='recall') AS recalls,"
+                "COUNT(*) FILTER (WHERE event_type IN ('store','resolve')) AS stores,"
+                "COUNT(*) FILTER (WHERE event_type='correct') AS corrections,"
+                "COUNT(*) FILTER (WHERE event_type='forget') AS forgets,"
+                "COUNT(*) FILTER (WHERE ok=FALSE) AS failures,"
+                "MAX(created_at) FILTER (WHERE ok=TRUE) AS last_successful_at "
+                "FROM meko_events WHERE asha_id=:asha_id"
+            ), {"asha_id": asha_id}).fetchone()
+        return {
+            "recalls": int(row.recalls or 0),
+            "stores": int(row.stores or 0),
+            "corrections": int(row.corrections or 0),
+            "forgets": int(row.forgets or 0),
+            "failures": int(row.failures or 0),
+            "last_successful_at": (
+                row.last_successful_at.isoformat()
+                if row.last_successful_at else None
+            ),
+        }
+    except Exception as e:
+        print("Get Meko event summary error: " + type(e).__name__)
+        return {}
