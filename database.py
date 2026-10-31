@@ -1980,7 +1980,8 @@ def get_meko_event_summary(asha_id):
                 "COUNT(*) FILTER (WHERE event_type='correct') AS corrections,"
                 "COUNT(*) FILTER (WHERE event_type='forget') AS forgets,"
                 "COUNT(*) FILTER (WHERE ok=FALSE) AS failures,"
-                "MAX(created_at) FILTER (WHERE ok=TRUE) AS last_successful_at "
+                "MAX(created_at) FILTER (WHERE ok=TRUE "
+                "AND COALESCE(note,'') != 'triage decision') AS last_successful_at "
                 "FROM meko_events WHERE asha_id=:asha_id"
             ), {"asha_id": asha_id}).fetchone()
         return {

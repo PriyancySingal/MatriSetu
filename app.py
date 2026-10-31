@@ -10,6 +10,8 @@
 
 import os
 from datetime import datetime
+import config
+import meko_client
 from flask import (
     Flask, request, render_template_string,
     session, redirect, jsonify, Response
@@ -30,8 +32,10 @@ from admin    import render_admin_login, render_admin_panel
 from escalation import start_escalation_engine
 from meko_client import (
     cached_triage_memory_level, highest_triage_level,
-    queue_triage_memory_record, start_triage_memory_lookup,
+    log_triage_decision, queue_triage_memory_record,
+    start_triage_memory_lookup,
 )
+from meko_panel import render_meko_panel
 
 from database import (
     # Core
@@ -80,6 +84,8 @@ from database import (
     get_postpartum_patients_due,
     # Unified login
     unified_login,
+    # Meko local event log
+    get_meko_events, get_meko_event_summary,
 )
 
 # ─────────────────────────────────────────────────────────────────
@@ -654,6 +660,7 @@ def whatsapp_reply():
                 sender, "GREEN", user["week"],
                 postpartum=user.get("status") == "postpartum",
                 status="resolved",
+                asha_id=user.get("asha_id"),
             )
             alert = get_alert_by_patient_phone(sender)
             if alert and alert["status"] == "Attended":
@@ -671,6 +678,7 @@ def whatsapp_reply():
             queue_triage_memory_record(
                 sender, "RED", user["week"],
                 postpartum=user.get("status") == "postpartum",
+                asha_id=user.get("asha_id"),
             )
             save_asha_alert_db(
                 sender, user["name"], user["week"],
@@ -738,13 +746,20 @@ def whatsapp_reply():
         # ── AI symptom analysis ───────────────────────────────────
         is_postpartum = user.get("status") == "postpartum"
         remembered_level = cached_triage_memory_level(sender)
-        start_triage_memory_lookup(sender)
+        start_triage_memory_lookup(sender, user.get("asha_id"))
         level, reply, alert_needed = analyze(
             incoming_msg, user["week"],
             language=user.get("language", "Hindi"),
             postpartum=is_postpartum
         )
         final_level = highest_triage_level(level, remembered_level)
+        log_triage_decision(
+            sender,
+            user.get("asha_id"),
+            level,
+            remembered_level,
+            final_level,
+        )
         if final_level != level:
             level = final_level
             reply = get_response_template(
@@ -754,7 +769,11 @@ def whatsapp_reply():
 
         if level in {"AMBER", "RED"}:
             queue_triage_memory_record(
-                sender, level, user["week"], postpartum=is_postpartum
+                sender,
+                level,
+                user["week"],
+                postpartum=is_postpartum,
+                asha_id=user.get("asha_id"),
             )
 
         save_symptom_log(sender, user["week"], incoming_msg, level)
@@ -802,6 +821,7 @@ def whatsapp_reply():
 def login():
     error = ""
     if request.method == "POST":
+        session.pop("asha_id", None)
         phone = request.form.get("phone", "").strip()
         clean = phone.replace("+91","").replace(" ","").replace("-","")
         if len(clean) == 10 and clean.isdigit():
@@ -814,6 +834,7 @@ def login():
         if user:
             role = user.get("role")
             if role == "asha":
+                session["asha_id"] = user["asha_id"]
                 return redirect(f"/dashboard/{user['asha_id']}")
             elif role == "supervisor":
                 return redirect(f"/supervisor/{user['supervisor_id']}")
@@ -886,6 +907,143 @@ def dashboard(asha_id):
     high_risk = len([a for a in alerts if a["status"] != "Resolved"])
     safe      = max(len(patients) - high_risk, 0)
     return render_dashboard(patients, high_risk, len(patients), safe, asha_id)
+
+
+def _asha_memory_authorized(asha_id):
+    return session.get("asha_id") == asha_id
+
+
+@app.route("/dashboard/<asha_id>/meko")
+def meko_memory_page(asha_id):
+    if not _asha_memory_authorized(asha_id):
+        return redirect("/login")
+
+    patients = get_all_patients(asha_id)
+    phone_set = set(patients)
+    events = [
+        event for event in get_meko_events(asha_id, limit=500)
+        if event["phone"] in phone_set
+    ]
+    summary = get_meko_event_summary(asha_id)
+    return render_meko_panel(
+        asha_id,
+        patients,
+        events,
+        summary,
+        config.MEKO_ENABLED,
+    )
+
+
+@app.route("/dashboard/<asha_id>/meko/data")
+def meko_memory_data(asha_id):
+    if not _asha_memory_authorized(asha_id):
+        return jsonify({"error": "unauthorized"}), 401
+
+    patients = get_all_patients(asha_id)
+    phone_set = set(patients)
+    events = [
+        event for event in get_meko_events(asha_id, limit=500)
+        if event["phone"] in phone_set
+    ]
+    events_by_phone = {}
+    for event in events:
+        events_by_phone.setdefault(event["phone"], []).append(event)
+
+    enabled = config.MEKO_ENABLED
+    patient_data = []
+    for phone, patient in patients.items():
+        patient_events = events_by_phone.get(phone, [])[:20]
+        decision = next(
+            (
+                {
+                    "level_ai": event.get("level_ai"),
+                    "level_memory": event.get("level_memory"),
+                    "level_final": event.get("level_final"),
+                    "created_at": event.get("created_at"),
+                }
+                for event in patient_events
+                if event.get("note") == "triage decision"
+                and event.get("level_ai")
+                and event.get("level_final")
+            ),
+            None,
+        )
+        try:
+            memory = (
+                meko_client.get_patient_memory_snapshot(phone, asha_id)
+                if enabled
+                else {"state": "off", "record": None, "records": []}
+            )
+        except Exception as exc:
+            print("Meko panel data error: " + type(exc).__name__)
+            memory = {"state": "unavailable", "record": None, "records": []}
+        patient_data.append({
+            "phone": phone,
+            "name": patient.get("name") or "Patient",
+            "week": patient.get("week"),
+            "memory": memory,
+            "decision": decision,
+            "events": patient_events,
+        })
+
+    return jsonify({
+        "enabled": enabled,
+        "summary": get_meko_event_summary(asha_id),
+        "patients": patient_data,
+    })
+
+
+@app.route(
+    "/dashboard/<asha_id>/meko/<path:phone>/correct",
+    methods=["POST"],
+)
+def correct_meko_memory(asha_id, phone):
+    if not _asha_memory_authorized(asha_id):
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    if phone not in get_all_patients(asha_id):
+        return jsonify({"ok": False, "error": "patient not found"}), 404
+    if not config.MEKO_ENABLED:
+        return jsonify({"ok": False, "error": "Meko is OFF"}), 409
+
+    payload = request.get_json(silent=True) or request.form
+    level = str(payload.get("level", "")).strip().upper()
+    status = str(payload.get("status", "")).strip().lower()
+    if level not in {"GREEN", "AMBER", "RED"}:
+        return jsonify({"ok": False, "error": "invalid level"}), 400
+    if status not in {"active", "resolved"}:
+        return jsonify({"ok": False, "error": "invalid status"}), 400
+
+    try:
+        result = meko_client.correct_patient_triage_memory(
+            phone, level, status, asha_id
+        )
+    except Exception as exc:
+        print("Meko correction failed: " + type(exc).__name__)
+        return jsonify({"ok": False, "error": "Meko unavailable"}), 503
+    if not result.get("ok"):
+        status_code = 404 if result.get("error") == "No active Meko record found" else 503
+        return jsonify(result), status_code
+    return jsonify(result)
+
+
+@app.route(
+    "/dashboard/<asha_id>/meko/<path:phone>/forget",
+    methods=["POST"],
+)
+def forget_meko_memory(asha_id, phone):
+    if not _asha_memory_authorized(asha_id):
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    if phone not in get_all_patients(asha_id):
+        return jsonify({"ok": False, "error": "patient not found"}), 404
+    if not config.MEKO_ENABLED:
+        return jsonify({"ok": False, "error": "Meko is OFF"}), 409
+
+    try:
+        result = meko_client.forget_patient_triage_memory(phone, asha_id)
+    except Exception as exc:
+        print("Meko forget failed: " + type(exc).__name__)
+        return jsonify({"ok": False, "error": "Meko unavailable"}), 503
+    return jsonify(result), 200 if result.get("ok") else 503
 
 
 @app.route("/dashboard/<asha_id>/attend/<int:alert_id>", methods=["POST"])

@@ -328,13 +328,25 @@ def _panel_snapshot_from_search(
         row for row in _parse_memory_records(raw)
         if row["agent_id"] == agent_id and row["run_id"] == conversation_id
     ]
-    latest = max(records, key=lambda row: row["recorded_at"], default=None)
     now = datetime.now(timezone.utc)
-    effective = recent_triage_record(
-        "\n".join(row["raw_excerpt"] for row in records),
-        now,
-    )
+    scoped_text = "\n".join(row["raw_excerpt"] for row in records)
+    effective = recent_triage_record(scoped_text, now)
     effective_level = effective[0] if effective and effective[1] == "active" else None
+    latest = None
+    if effective:
+        latest = next(
+            (
+                row for row in records
+                if (
+                    row["level"],
+                    row["status"],
+                    row["recorded_at"],
+                ) == effective
+            ),
+            None,
+        )
+    if latest is None:
+        latest = max(records, key=lambda row: row["recorded_at"], default=None)
     display_record = None
     if latest:
         age_seconds = max(0, int((now - latest["recorded_at"]).total_seconds()))
@@ -667,7 +679,7 @@ def _refresh_panel_snapshot(
                     recorded_at + timedelta(hours=24),
                     now,
                 )
-            elif snapshot.get("state") == "empty":
+            elif snapshot.get("state") == "empty" or record:
                 _TRIAGE_CACHE[hashed_patient_id] = (
                     None,
                     now + _LOOKUP_REFRESH_INTERVAL,
@@ -773,68 +785,91 @@ def correct_patient_triage_memory(
     if not conversation:
         return {"ok": False, "error": "Meko unavailable"}
     conversation_id, agent_id = conversation
-    active_records = [row for row in records if row["status"] == "active"]
-    target = max(
-        active_records,
-        key=lambda row: row["recorded_at"],
+    now = datetime.now(timezone.utc)
+    latest_resolution = max(
+        (
+            row["recorded_at"] for row in records
+            if row["status"] == "resolved"
+        ),
         default=None,
     )
-    if not target:
+    active_records = [
+        row for row in records
+        if row["status"] == "active"
+        and timedelta(minutes=-5) <= now - row["recorded_at"] <= timedelta(hours=24)
+        and (latest_resolution is None or row["recorded_at"] > latest_resolution)
+    ]
+    active_records.sort(key=lambda row: row["recorded_at"], reverse=True)
+    if not active_records:
         return {"ok": False, "error": "No active Meko record found"}
 
     recorded_at = datetime.now(timezone.utc)
-    replacement = {
-        "level": level,
-        "status": status,
-        "week": target["week"],
-        "postpartum": target["postpartum"],
-        "recorded_at": recorded_at.isoformat(timespec="seconds"),
-    }
-    text = _TRIAGE_RECORD_PREFIX + json.dumps(
-        replacement, separators=(",", ":")
-    )
-    started = time.monotonic()
-    result = _safe_call(
-        "memory_update",
-        {
-            "memory_id": target["memory_id"],
-            "text": text,
-            "conversation_id": conversation_id,
-            "agent_id": agent_id,
-            "datapack_id": config.MEKO_PATIENTS_DATAPACK,
-        },
-    )
-    latency_ms += int((time.monotonic() - started) * 1000)
-    ok = result is not None and not getattr(result, "is_error", False)
-    _log_meko_event_async(
-        identifier,
-        asha_id,
-        "correct",
-        ok,
-        latency_ms=latency_ms,
-        level_memory=level,
-        memory_id=target["memory_id"],
-        note="memory corrected" if ok else "memory correction failed",
-    )
-    if not ok:
-        return {"ok": False, "error": "Meko unavailable"}
+    updated_ids = []
+    for target in active_records:
+        replacement = {
+            "level": level,
+            "status": status,
+            "week": target["week"],
+            "postpartum": target["postpartum"],
+            "recorded_at": recorded_at.isoformat(timespec="seconds"),
+        }
+        replacement_text = _TRIAGE_RECORD_PREFIX + json.dumps(
+            replacement, separators=(",", ":")
+        )
+        started = time.monotonic()
+        result = _safe_call(
+            "memory_update",
+            {
+                "memory_id": target["memory_id"],
+                "text": replacement_text,
+                "conversation_id": conversation_id,
+                "agent_id": agent_id,
+                "datapack_id": config.MEKO_PATIENTS_DATAPACK,
+            },
+        )
+        update_latency = int((time.monotonic() - started) * 1000)
+        latency_ms += update_latency
+        ok = result is not None and not getattr(result, "is_error", False)
+        if ok:
+            updated_ids.append(target["memory_id"])
+        _log_meko_event_async(
+            identifier,
+            asha_id,
+            "correct",
+            ok,
+            latency_ms=update_latency,
+            level_memory=level,
+            memory_id=target["memory_id"],
+            note="memory corrected" if ok else "memory correction failed",
+        )
+        if not ok:
+            return {
+                "ok": False,
+                "updated": len(updated_ids),
+                "error": "Meko unavailable; correction may be partial",
+            }
 
+    latest = active_records[0]
     hashed_patient_id = patient_id(identifier)
-    row = _record_to_panel_row(
-        level,
-        status,
-        target["week"],
-        target["postpartum"],
-        recorded_at,
-        target["memory_id"],
-    )
+    panel_rows = [
+        _record_to_panel_row(
+            level,
+            status,
+            target["week"],
+            target["postpartum"],
+            recorded_at,
+            target["memory_id"],
+        )
+        for target in active_records
+    ]
     with _PANEL_CACHE_LOCK:
         epoch = _CACHE_EPOCH.get(hashed_patient_id, 0) + 1
         _CACHE_EPOCH[hashed_patient_id] = epoch
+        row = panel_rows[0]
         _PANEL_CACHE[hashed_patient_id] = {
             "state": "available",
             "record": row,
-            "records": [row],
+            "records": panel_rows,
             "effective_level": row["effective_level"],
             "fetched_at": recorded_at.isoformat(),
         }
@@ -847,13 +882,31 @@ def correct_patient_triage_memory(
             ),
             recorded_at,
         )
-    return {"ok": True, "memory_id": target["memory_id"]}
+    return {"ok": True, "memory_id": latest["memory_id"], "updated": len(updated_ids)}
 
 
 def forget_patient_triage_memory(
     identifier: str,
     asha_id: Optional[str] = None,
 ) -> dict[str, Any]:
+    try:
+        pending_writes = _MEKO_WRITE_EXECUTOR.submit(lambda: None)
+        pending_writes.result(timeout=config.MEKO_TIMEOUT_SECONDS + 1)
+    except Exception as exc:
+        logger.warning("Meko pending writes could not be flushed (%s)", type(exc).__name__)
+        _log_meko_event_async(
+            identifier,
+            asha_id,
+            "forget",
+            False,
+            note="pending memory write could not be confirmed",
+        )
+        return {
+            "ok": False,
+            "deleted": 0,
+            "error": "Meko unavailable; pending write could not be confirmed",
+        }
+
     conversation, records, search_latency = _fetch_owned_triage_records(
         identifier, asha_id
     )
@@ -863,6 +916,15 @@ def forget_patient_triage_memory(
     deleted = 0
     failed = 0
     total_latency = search_latency
+    if not records:
+        _log_meko_event_async(
+            identifier,
+            asha_id,
+            "forget",
+            True,
+            latency_ms=search_latency,
+            note="no triage records found",
+        )
     for record in records:
         started = time.monotonic()
         result = _safe_call(

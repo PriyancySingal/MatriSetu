@@ -652,6 +652,7 @@ LOW      = everything else
 | Reports | fpdf2 | 7-page NHM monthly PDF with no external dependencies |
 | Medical Data | WHO + NHM + FOGSI + ICMR | Government-backed clinical guidelines |
 | Shared Memory | Meko MCP (optional) | De-identified recent triage continuity; can only raise urgency |
+| ASHA Memory UI | Meko Memory page | Review recalled/stored triage records, decisions, and correct or forget memory |
 
 ---
 
@@ -682,6 +683,7 @@ MatriSetu/
 |-- tips.py             Weekly pregnancy tips
 |-- config.py           Environment variable config
 |-- meko_client.py      Optional, de-identified Meko triage memory
+|-- meko_panel.py       ASHA Meko Memory page
 |-- requirements.txt
 |-- Procfile            Railway process file
 ```
@@ -759,8 +761,10 @@ week, postpartum flag, and timestamp); patient-authored messages, names, phone
 numbers, and location are not sent. Recalled records older than 24 hours or
 marked resolved cannot raise a new triage result. Meko may raise urgency but
 never lowers the clinical analyzer's result. The browser does not call Meko
-directly; patient responses and ASHA alerts continue through the existing
-WhatsApp and dashboard flows.
+directly. Authenticated ASHA workers can open **Meko Memory** from the dashboard
+to review live recalled records, locally logged writes and triage decisions, and
+correct or forget their patients' Meko triage memories. The local `meko_events`
+table stores audit metadata, not patient-authored message text.
 
 ---
 
@@ -785,6 +789,10 @@ WhatsApp and dashboard flows.
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | /dashboard/<asha_id> | ASHA dashboard (6 tabs) |
+| GET | /dashboard/<asha_id>/meko | Authenticated ASHA Meko Memory page |
+| GET | /dashboard/<asha_id>/meko/data | Meko panel live data and event log |
+| POST | /dashboard/<asha_id>/meko/<phone>/correct | Correct the patient's active triage memory |
+| POST | /dashboard/<asha_id>/meko/<phone>/forget | Forget the patient's triage memories |
 | POST | /dashboard/<id>/attend/<alert_id> | Mark alert attended |
 | POST | /dashboard/<id>/log-visit/<alert_id> | Log visit outcome |
 | POST | /dashboard/<id>/log-anc | Log ANC visit |

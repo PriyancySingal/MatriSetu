@@ -637,6 +637,10 @@ DASHBOARD_HTML = """
         <span class="header-pill">📍 {{ asha_village }}</span>
         <span class="header-pill">👥 {{ total }} Patients</span>
         <span class="header-pill">📊 {{ total_reports }} Reports</span>
+        <a class="header-pill" href="/dashboard/{{ asha_id }}/meko"
+           style="color:white;text-decoration:none;background:rgba(16,185,129,.25)">
+            🧠 Meko Memory
+        </a>
         {% if high_risk > 0 %}
         <span class="header-pill danger">🚨 {{ high_risk }} Alerts</span>
         {% endif %}

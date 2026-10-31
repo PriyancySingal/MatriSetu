@@ -2,6 +2,7 @@ import json
 import unittest
 from concurrent.futures import Future
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import config
@@ -203,6 +204,165 @@ class MekoTriageMemoryTests(unittest.TestCase):
             meko_client._extract_id(response, "memory_id"),
             "memory-1",
         )
+
+    def test_correct_updates_owned_active_memories_with_writer_agent_id(self):
+        memory_text = meko_client._TRIAGE_RECORD_PREFIX + json.dumps({
+            "level": "RED",
+            "status": "active",
+            "week": 24,
+            "postpartum": False,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        })
+        search_result = SimpleNamespace(
+            structured_content={
+                "result": json.dumps({
+                    "results": [{
+                        "id": "memory-1",
+                        "memory": memory_text,
+                        "agent_id": "matrisetu:P-hash",
+                        "run_id": "conversation-1",
+                    }]
+                })
+            },
+            content=[],
+            is_error=False,
+        )
+        with patch.object(config, "MEKO_ENABLED", True):
+            with patch.object(config, "MEKO_PATIENTS_DATAPACK", "pack-1"):
+                with patch.object(config, "MEKO_PATIENT_SALT", "test-salt"):
+                    with patch.object(
+                        meko_client,
+                        "_patient_conversation",
+                        return_value=("conversation-1", "matrisetu:P-hash"),
+                    ):
+                        with patch.object(
+                            meko_client,
+                            "_safe_call",
+                            side_effect=[
+                                search_result,
+                                SimpleNamespace(is_error=False),
+                            ],
+                        ) as call:
+                            with patch.object(meko_client, "_log_meko_event_async"):
+                                result = meko_client.correct_patient_triage_memory(
+                                    "whatsapp:+15551234567",
+                                    "AMBER",
+                                    "active",
+                                    "asha-1",
+                                )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["memory_id"], "memory-1")
+        self.assertEqual(call.call_args_list[1].args[0], "memory_update")
+        update_args = call.call_args_list[1].args[1]
+        self.assertEqual(update_args["memory_id"], "memory-1")
+        self.assertEqual(update_args["conversation_id"], "conversation-1")
+        self.assertEqual(update_args["agent_id"], "matrisetu:P-hash")
+        self.assertIn('"level":"AMBER"', update_args["text"])
+        self.assertNotIn("15551234567", update_args["text"])
+
+    def test_forget_deletes_only_patient_records_with_writer_agent_id(self):
+        def memory(level, agent_id):
+            return {
+                "id": level.lower() + "-memory",
+                "memory": meko_client._TRIAGE_RECORD_PREFIX + json.dumps({
+                    "level": level,
+                    "status": "active",
+                    "week": 24,
+                    "postpartum": False,
+                    "recorded_at": datetime.now(timezone.utc).isoformat(),
+                }),
+                "agent_id": agent_id,
+                "run_id": "conversation-1",
+            }
+
+        search_result = SimpleNamespace(
+            structured_content={
+                "result": json.dumps({
+                    "results": [
+                        memory("RED", "matrisetu:P-hash"),
+                        memory("AMBER", "other-agent"),
+                    ]
+                })
+            },
+            content=[],
+            is_error=False,
+        )
+        with patch.object(config, "MEKO_ENABLED", True):
+            with patch.object(config, "MEKO_PATIENTS_DATAPACK", "pack-1"):
+                with patch.object(config, "MEKO_PATIENT_SALT", "test-salt"):
+                    with patch.object(
+                        meko_client,
+                        "_patient_conversation",
+                        return_value=("conversation-1", "matrisetu:P-hash"),
+                    ):
+                        with patch.object(
+                            meko_client,
+                            "_safe_call",
+                            side_effect=[
+                                search_result,
+                                SimpleNamespace(is_error=False),
+                            ],
+                        ) as call:
+                            with patch.object(
+                                meko_client, "_log_meko_event_async"
+                            ):
+                                result = meko_client.forget_patient_triage_memory(
+                                    "whatsapp:+15551234567",
+                                    "asha-1",
+                                )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["deleted"], 1)
+        self.assertEqual(call.call_args_list[1].args[0], "memory_delete_by_id")
+        delete_args = call.call_args_list[1].args[1]
+        self.assertEqual(delete_args["memory_id"], "red-memory")
+        self.assertEqual(delete_args["conversation_id"], "conversation-1")
+        self.assertEqual(delete_args["agent_id"], "matrisetu:P-hash")
+
+    def test_panel_snapshot_parses_meko_search_id_and_record_fields(self):
+        memory_text = meko_client._TRIAGE_RECORD_PREFIX + json.dumps({
+            "level": "RED",
+            "status": "active",
+            "week": 24,
+            "postpartum": False,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        })
+        response = SimpleNamespace(
+            structured_content={
+                "result": json.dumps({
+                    "results": [{
+                        "id": "memory-1",
+                        "memory": memory_text,
+                        "agent_id": "matrisetu:P-hash",
+                        "run_id": "conversation-1",
+                    }]
+                })
+            },
+            content=[],
+            is_error=False,
+        )
+        with patch.object(config, "MEKO_ENABLED", True):
+            with patch.object(config, "MEKO_PATIENTS_DATAPACK", "pack-1"):
+                with patch.object(
+                    meko_client,
+                    "_patient_conversation",
+                    return_value=("conversation-1", "matrisetu:P-hash"),
+                ):
+                    with patch.object(meko_client, "_safe_call", return_value=response):
+                        with patch.object(meko_client, "_log_meko_event_async"):
+                            snapshot = meko_client._panel_snapshot_from_search(
+                                "whatsapp:+15551234567",
+                                "asha-1",
+                            )
+
+        self.assertEqual(snapshot["state"], "available")
+        self.assertEqual(snapshot["record"]["memory_id"], "memory-1")
+        self.assertEqual(snapshot["record"]["level"], "RED")
+        self.assertEqual(snapshot["record"]["status"], "active")
+        self.assertEqual(snapshot["record"]["week"], 24)
+        self.assertEqual(snapshot["effective_level"], "RED")
+        self.assertIn(memory_text, snapshot["record"]["raw_excerpt"])
 
 
 if __name__ == "__main__":
