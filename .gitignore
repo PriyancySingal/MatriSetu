@@ -14,3 +14,12 @@ ngrok.exe
 *.db
 *.sqlite
 *.sqlite3
+# Environment variables and secrets
+# Python virtual environments
+# Node.js
+# OS files
+Thumbs.db
+# Local tools
+# Local databases
+# VS Code local MCP credentials
+.vscode/mcp.json
