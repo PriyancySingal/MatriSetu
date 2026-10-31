@@ -103,6 +103,48 @@ def test_data_endpoint_returns_live_recalled_fields(monkeypatch):
     get_snapshot.assert_called_once_with(PATIENT_PHONE, ASHA_ID)
 
 
+def test_recovery_resolution_replaces_stale_escalation_decision(monkeypatch):
+    monkeypatch.setattr(config, "MEKO_ENABLED", False)
+    events = [
+        {
+            "phone": PATIENT_PHONE,
+            "event_type": "resolve",
+            "level_memory": "GREEN",
+            "level_ai": None,
+            "level_final": None,
+            "ok": True,
+            "created_at": "2026-11-01T01:32:00+00:00",
+            "note": "triage memory written",
+        },
+        {
+            "phone": PATIENT_PHONE,
+            "event_type": "recall",
+            "level_ai": "AMBER",
+            "level_memory": "RED",
+            "level_final": "RED",
+            "ok": True,
+            "created_at": "2026-11-01T01:31:00+00:00",
+            "note": "triage decision",
+        },
+    ]
+    client = _client(monkeypatch)
+    monkeypatch.setattr(
+        app_module,
+        "get_meko_events",
+        lambda *_args, **_kwargs: events,
+    )
+
+    page = client.get(f"/dashboard/{ASHA_ID}/meko")
+    data = client.get(f"/dashboard/{ASHA_ID}/meko/data")
+
+    assert page.status_code == 200
+    assert b"Recovery confirmed. Meko memory is GREEN/resolved" in page.data
+    assert b"Meko raised AMBER to RED" not in page.data
+    decision = data.get_json()["patients"][0]["decision"]
+    assert decision["kind"] == "resolved"
+    assert decision["level_memory"] == "GREEN"
+
+
 def test_correct_and_forget_are_scoped_to_logged_in_asha(monkeypatch):
     monkeypatch.setattr(config, "MEKO_ENABLED", True)
     correct = Mock(return_value={"ok": True, "memory_id": "memory-uuid"})

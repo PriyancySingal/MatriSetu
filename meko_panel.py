@@ -1,6 +1,40 @@
 from flask import render_template_string
 
 
+def latest_patient_decision(events):
+    for event in events:
+        if event.get("note") == "triage decision":
+            if event.get("level_ai") and event.get("level_final"):
+                return {
+                    "kind": "triage",
+                    "level_ai": event.get("level_ai"),
+                    "level_memory": event.get("level_memory"),
+                    "level_final": event.get("level_final"),
+                    "created_at": event.get("created_at"),
+                }
+            continue
+        if not event.get("ok"):
+            continue
+        if event.get("event_type") == "resolve":
+            return {
+                "kind": "resolved",
+                "level_memory": event.get("level_memory"),
+                "created_at": event.get("created_at"),
+            }
+        if event.get("event_type") == "correct":
+            return {
+                "kind": "corrected",
+                "level_memory": event.get("level_memory"),
+                "created_at": event.get("created_at"),
+            }
+        if event.get("event_type") == "forget":
+            return {
+                "kind": "forgotten",
+                "created_at": event.get("created_at"),
+            }
+    return None
+
+
 MEKO_PANEL_HTML = """
 <!doctype html>
 <html lang="en">
@@ -136,9 +170,17 @@ MEKO_PANEL_HTML = """
                     <h3>DECISION</h3>
                     <div class="decision-content muted">
                         {% if patient.decision %}
+                        {% if patient.decision.kind == 'resolved' %}
+                        Recovery confirmed. Meko memory is {{ patient.decision.level_memory or 'GREEN' }}/resolved; the previous escalation is resolved.
+                        {% elif patient.decision.kind == 'corrected' %}
+                        Meko memory was corrected. Current stored level: {{ patient.decision.level_memory or '—' }}.
+                        {% elif patient.decision.kind == 'forgotten' %}
+                        Meko memory was forgotten and will not be used for future triage recalls.
+                        {% else %}
                         AI said {{ patient.decision.level_ai or '—' }},
                         Meko memory said {{ patient.decision.level_memory or 'nothing' }},
                         final {{ patient.decision.level_final or '—' }}.
+                        {% endif %}
                         {% else %}No triage decision recorded yet.{% endif %}
                     </div>
                 </section>
@@ -383,7 +425,25 @@ MEKO_PANEL_HTML = """
         const decision = patient.decision;
         const decisionContent = card.querySelector('.decision-content');
         decisionContent.classList.remove('decision', 'raise');
-        if (decision && decision.level_ai && decision.level_final) {
+        if (decision && decision.kind === 'resolved') {
+            decisionContent.classList.add('decision');
+            setText(
+                decisionContent,
+                `Recovery confirmed. Meko memory is ${decision.level_memory || 'GREEN'}/resolved; the previous escalation is resolved.`
+            );
+        } else if (decision && decision.kind === 'corrected') {
+            decisionContent.classList.add('decision');
+            setText(
+                decisionContent,
+                `Meko memory was corrected. Current stored level: ${decision.level_memory || '—'}.`
+            );
+        } else if (decision && decision.kind === 'forgotten') {
+            decisionContent.classList.add('decision');
+            setText(
+                decisionContent,
+                'Meko memory was forgotten and will not be used for future triage recalls.'
+            );
+        } else if (decision && decision.level_ai && decision.level_final) {
             decisionContent.classList.add('decision');
             setText(
                 decisionContent,
@@ -512,13 +572,7 @@ def render_meko_panel(asha_id, patients, events, summary, meko_enabled):
     patient_rows = []
     for phone, patient in patients.items():
         patient_events = events_by_phone.get(phone, [])[:20]
-        decision = next(
-            (
-                event for event in patient_events
-                if event.get("level_ai") and event.get("level_final")
-            ),
-            None,
-        )
+        decision = latest_patient_decision(patient_events)
         stored = [
             event for event in patient_events
             if event["event_type"] in {"store", "resolve", "correct"}

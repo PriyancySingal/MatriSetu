@@ -35,7 +35,7 @@ from meko_client import (
     log_triage_decision, queue_triage_memory_record,
     start_triage_memory_lookup,
 )
-from meko_panel import render_meko_panel
+from meko_panel import latest_patient_decision, render_meko_panel
 
 from database import (
     # Core
@@ -953,21 +953,7 @@ def meko_memory_data(asha_id):
     patient_data = []
     for phone, patient in patients.items():
         patient_events = events_by_phone.get(phone, [])[:20]
-        decision = next(
-            (
-                {
-                    "level_ai": event.get("level_ai"),
-                    "level_memory": event.get("level_memory"),
-                    "level_final": event.get("level_final"),
-                    "created_at": event.get("created_at"),
-                }
-                for event in patient_events
-                if event.get("note") == "triage decision"
-                and event.get("level_ai")
-                and event.get("level_final")
-            ),
-            None,
-        )
+        decision = latest_patient_decision(patient_events)
         try:
             memory = (
                 meko_client.get_patient_memory_snapshot(phone, asha_id)
