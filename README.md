@@ -1,4 +1,4 @@
-<img width="146" height="48" alt="image" src="https://github.com/user-attachments/assets/074d9e27-c51c-4b68-b11b-048b8ad189d0" /># MatriSetu — AI Maternal Health Companion for Rural India
+# MatriSetu — AI Maternal Health Companion for Rural India
 
 > **MatriSetu** — Mother's Friend
 > An AI-powered WhatsApp bot that gives every rural pregnant woman a knowledgeable health companion available 24/7 in her own language.
