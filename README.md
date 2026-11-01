@@ -1,28 +1,32 @@
-# MatriSetu — AI Maternal Health Companion for Rural India
+<img width="146" height="48" alt="image" src="https://github.com/user-attachments/assets/074d9e27-c51c-4b68-b11b-048b8ad189d0" /># MatriSetu — AI Maternal Health Companion for Rural India
 
 > **MatriSetu** — Mother's Friend
 > An AI-powered WhatsApp bot that gives every rural pregnant woman a knowledgeable health companion available 24/7 in her own language.
+>
+> Built in 24 hours at **hackCBS 9.0**, with **Meko** (built on **YugabyteDB**) as the memory behind our triage.
 
-**Live URL:** `https://matrisetu.onrender.com`
-**WhatsApp Bot:** `+1 415 523 8886` (send `join kitchen-highest`)
-**GitHub:** `https://github.com/singalpriyancy-coder/MatriSetu`
+**Live URL:** `https://matrisetu-1.onrender.com` (hosted on Render)
+**WhatsApp Bot:** `+1 415 523 8886` (send `join courage-end`)
+**GitHub:** `https://github.com/PriyancySingal/MatriSetu`
 
 ---
 
 ## Table of Contents
 
 - [Project Overview](#project-overview)
+- [Built in 24 Hours at hackCBS 9.0](#built-in-24-hours-at-hackcbs-90)
+- [Meko and YugabyteDB: Memory for Triage](#meko-and-yugabytedb-memory-for-triage)
 - [Problem Statement](#problem-statement)
 - [Solution](#solution)
 - [System Architecture](#system-architecture)
 - [5-Tier Hierarchy](#5-tier-hierarchy)
-- [Features — All 4 Months](#features)
+- [Features — 4 Build Phases](#features)
 - [WhatsApp Bot Flow](#whatsapp-bot-flow)
 - [Symptom Triage System](#symptom-triage-system)
 - [Alert and Escalation System](#alert-and-escalation-system)
 - [Care Loop](#care-loop)
-- [Month 3 — Analytics and NHM Exports](#month-3--analytics-and-nhm-exports)
-- [Month 4 — Postpartum and Child Health](#month-4--postpartum-and-child-health)
+- [Phase 3 — Analytics and NHM Exports](#phase-3--analytics-and-nhm-exports)
+- [Phase 4 — Postpartum and Child Health](#phase-4--postpartum-and-child-health)
 - [Smart ASHA Assignment](#smart-asha-assignment)
 - [Database Schema](#database-schema)
 - [Tech Stack](#tech-stack)
@@ -32,6 +36,7 @@
 - [API Endpoints](#api-endpoints)
 - [Deployment](#deployment)
 - [Medical Sources](#medical-sources)
+- [Future Scope](#future-scope)
 - [Team](#team)
 
 ---
@@ -45,6 +50,58 @@ The system operates on a **5-tier NHM hierarchy**: District Health Officer → B
 **No app download. No English required. No new device needed.**
 
 ---
+
+## Built in 24 Hours at hackCBS 9.0
+
+<!-- EDIT: adjust the hour blocks below to match your real timeline -->
+
+MatriSetu was built and shipped within the 24-hour window of **hackCBS 9.0**. The goal was a system that works end to end, from a mother's WhatsApp message to an ASHA's phone to a district dashboard, rather than a demo of one feature.
+
+| Block | Focus | What shipped |
+|---|---|---|
+| Hours 0-4 | Foundation | WhatsApp bot on the Twilio sandbox, registration flow, PostgreSQL schema, Groq triage and Whisper voice notes |
+| Hours 4-10 | The safety loop | GREEN / AMBER / RED triage with rule-based fallback, ASHA alert with Maps link, care loop (attended, "are you better?", resolved) |
+| Hours 10-15 | Chain of command | 5-tier hierarchy, role dashboards, 2-hour auto-escalation, escalation audit log |
+| Hours 15-19 | Meko memory | De-identified triage memory through Meko, ASHA Meko Memory page, Meko ON vs OFF comparison |
+| Hours 19-22 | Reach | Analytics, NHM exports, postpartum and child health, reminders |
+| Hours 22-24 | Ship | Render deployment, demo data, testing, pitch |
+
+### Decisions that let us move fast
+
+- **WhatsApp instead of a new app:** no install, no onboarding, and it works on the phone she already owns.
+- **Twilio sandbox first:** the Meta Cloud API is planned for production scale.
+- **Groq for inference:** fast triage and Whisper transcription for Hindi and other Indian languages.
+- **Rule-based fallback:** if the AI call fails, a WHO / NHM keyword engine still replies and still alerts the ASHA.
+- **Server-side SVG charts:** no JavaScript charting library to wire up.
+- **Render auto-deploy:** every push to main goes live.
+- **Meko as optional and fail-open:** core triage never depends on it, so adding memory could not break the safety loop.
+
+---
+
+## Meko and YugabyteDB: Memory for Triage
+
+**Meko** ("memory and knowledge") is Yugabyte's context engine, built on **YugabyteDB**. It gives AI persistent memory, organised in **datapacks** and reached over a remote MCP endpoint, so context lives outside any single model or session.
+
+### How MatriSetu uses it
+
+- **Two datapacks:** one for patient triage memory and one for district-level memory.
+- **De-identified by design:** only a salted pseudonymous patient ID and structured triage metadata (risk level, pregnancy week, postpartum flag, timestamp) are sent. Patient-authored messages, names, phone numbers and location are not.
+- **Safe by design:** recalled records older than 24 hours or marked resolved cannot raise a new triage result. Meko can raise urgency but never lowers the clinical analyzer's result.
+- **Fail-open:** if Meko is slow or unreachable, triage continues without it.
+- **ASHA Meko Memory page:** authenticated ASHA workers can review recalled records and triage decisions, and correct or forget a patient's Meko memories. A local `meko_events` table keeps audit metadata only.
+
+### Meko ON vs OFF
+
+| Step | Meko OFF | Meko ON |
+|---|---|---|
+| She reports a severe headache and blurred vision, then writes "I have a mild headache" | Replies "Welcome back!", as if the conversation were new | Continues the same case and keeps the danger flag |
+| She then types "26" | Treats it as a fresh question and says it is generally normal at week 26 | Knows her week and her recent RED result, and stays cautious |
+| She says "I am better now" | Not linked to the earlier alert | Closes the loop with her |
+
+The same difference is visible in the ASHA dashboard.
+
+---
+
 
 ## Problem Statement
 
@@ -116,7 +173,7 @@ Patient receives WhatsApp: "Kya aap ab theek hain?"
        |                   |                  |
 +------v------+  +---------v------+  +--------v---------+
 |  GROQ AI    |  | GROQ WHISPER   |  |   POSTGRESQL     |
-| GPT-OSS 120B|  | Voice to Text  |  |   Railway DB     |
+| GPT-OSS 120B|  | Voice to Text  |  |   Managed DB    |
 | Triage AI   |  | Hindi + 100+   |  | 16 tables, 5-tier|
 +-------------+  +----------------+  +------------------+
        |
@@ -181,7 +238,7 @@ Patient receives WhatsApp: "Kya aap ab theek hain?"
 
 ## Features
 
-### Month 1 — Core WhatsApp Bot
+### Phase 1 — Core WhatsApp Bot
 
 | Feature | Description |
 |---|---|
@@ -200,7 +257,7 @@ Patient receives WhatsApp: "Kya aap ab theek hain?"
 | ANC logging | ASHA records ANC visit number, date, notes |
 | Scheme delivery logging | ASHA records scheme benefit delivered to patient |
 
-### Month 2 — Supervisor Layer and Escalation
+### Phase 2 — Supervisor Layer and Escalation
 
 | Feature | Description |
 |---|---|
@@ -212,9 +269,9 @@ Patient receives WhatsApp: "Kya aap ab theek hain?"
 | BMO dashboard | Block-level escalated alerts, resolve / escalate to DHO |
 | Unified login | Single /login endpoint detects ASHA / supervisor / BMO by phone number |
 | Performance rating | GREEN / AMBER / RED per ASHA based on response time and resolution rate |
-| Cron endpoint | /cron/escalate runs every 15 minutes via Railway cron |
+| Cron endpoint | /cron/escalate runs every 15 minutes via Render cron jobs |
 
-### Month 3 — Analytics and NHM Exports
+### Phase 3 — Analytics and NHM Exports
 
 | Feature | Description |
 |---|---|
@@ -237,7 +294,7 @@ Patient receives WhatsApp: "Kya aap ab theek hain?"
 | Monthly PDF report | 7-page NHM submission: cover, patient/ANC, alerts, ASHA table, village risks, child health, signature block |
 | JSON API endpoints | /admin/api/trends, /admin/api/village-risks, /admin/api/nhm-summary |
 
-### Month 4 — Postpartum Care and Child Health
+### Phase 4 — Postpartum Care and Child Health
 
 | Feature | Description |
 |---|---|
@@ -347,7 +404,7 @@ Triggers immediate ASHA WhatsApp alert and Maps navigation link:
 - Difficulty breathing
 - Unconsciousness
 
-### RED — Postpartum Danger Signs (Month 4)
+### RED — Postpartum Danger Signs (Phase 4)
 
 - Heavy bleeding (more than 2–3 pads per hour)
 - Fever above 38°C
@@ -356,7 +413,7 @@ Triggers immediate ASHA WhatsApp alert and Maps navigation link:
 - Mastitis signs
 - Persistent sadness or self-harm thoughts (PPD)
 
-### RED — Newborn Danger Signs (Month 4, 0–28 days)
+### RED — Newborn Danger Signs (Phase 4, 0–28 days)
 
 - Not feeding at all
 - Hypothermia (cold to touch)
@@ -395,7 +452,7 @@ Reassurance with tips: normal pregnancy discomforts, general questions, nutritio
 4. Alert visible on ASHA dashboard
 ```
 
-### Auto-Escalation (Month 2)
+### Auto-Escalation (Phase 2)
 
 ```
 Every 15 minutes (/cron/escalate):
@@ -455,7 +512,7 @@ Step 3B: Patient replies "still not well"
 
 ---
 
-## Month 3 — Analytics and NHM Exports
+## Phase 3 — Analytics and NHM Exports
 
 ### Analytics Dashboard (/admin/analytics)
 
@@ -511,7 +568,7 @@ All 10 CSV files are UTF-8 encoded with BOM for direct Excel compatibility.
 
 ---
 
-## Month 4 — Postpartum and Child Health
+## Phase 4 — Postpartum and Child Health
 
 ### PNC Schedule (WHO + NHM)
 
@@ -608,7 +665,7 @@ Among all matching ASHAs, the one with the **fewest active patients** is assigne
 
 **scheme_deliveries** — phone, patient_name, scheme_name, amount, delivered_by, delivery_date
 
-### Month 4 Tables
+### Phase 4 Tables
 
 **deliveries** — phone (UNIQUE), delivery_date, birth_weight, delivery_mode, facility, asha_id
 
@@ -643,15 +700,15 @@ LOW      = everything else
 | AI Triage | Groq GPT-OSS 120B (configurable with `GROQ_MODEL`) | Default Groq chat model |
 | Voice AI | Groq Whisper Large V3 | Best Hindi and Indian language accuracy |
 | Backend | Python + Flask | Lightweight, no triple-quote strings (version safe) |
-| Database | PostgreSQL on Railway | Permanent storage, DPDP 2023 compliant |
+| Database | PostgreSQL (managed) | Permanent storage, DPDP 2023 compliant |
 | ORM | SQLAlchemy + Psycopg2 | Reliable PostgreSQL, INTERVAL via f-string (not :param) |
 | Messaging | Twilio WhatsApp Business API | Real WhatsApp, 500M Indian users |
 | Messaging (planned) | Meta WhatsApp Cloud API | Production scale, unlimited messages |
-| Deployment | Railway Cloud | 24/7 auto-deploy on git push, no laptop needed |
+| Deployment | Render | 24/7 auto-deploy on git push, no laptop needed |
 | Maps | Google Maps Geocoding API | Address to coordinates, static map images, navigation links |
 | Reports | fpdf2 | 7-page NHM monthly PDF with no external dependencies |
 | Medical Data | WHO + NHM + FOGSI + ICMR | Government-backed clinical guidelines |
-| Shared Memory | Meko MCP (optional) | De-identified recent triage continuity; can only raise urgency |
+| Shared Memory | Meko (built on YugabyteDB) via MCP, optional | De-identified recent triage continuity; can only raise urgency |
 | ASHA Memory UI | Meko Memory page | Review recalled/stored triage records, decisions, and correct or forget memory |
 
 ---
@@ -660,7 +717,7 @@ LOW      = everything else
 
 ```
 MatriSetu/
-|-- app.py              Main Flask app + all routes (all 4 months)
+|-- app.py              Main Flask app + all routes (all 4 phases)
 |-- analyzer.py         Groq AI symptom analysis (pregnancy + postpartum)
 |-- alerts.py           ASHA WhatsApp alert system
 |-- dashboard.py        ASHA worker dashboard (6 tabs)
@@ -685,7 +742,7 @@ MatriSetu/
 |-- meko_client.py      Optional, de-identified Meko triage memory
 |-- meko_panel.py       ASHA Meko Memory page
 |-- requirements.txt
-|-- Procfile            Railway process file
+|-- Procfile            Process file
 ```
 
 ---
@@ -858,25 +915,27 @@ table stores audit metadata, not patient-authored message text.
 
 ## Deployment
 
-MatriSetu is deployed on Railway with automatic GitHub deployment.
+MatriSetu is deployed on **Render** with automatic GitHub deployment.
 
-**Live URL:** matrisetu-production.up.railway.app
+**Live URL:** https://matrisetu-1.onrender.com
+**Source:** https://github.com/PriyancySingal/MatriSetu
 
-### Railway Setup
+### Render Setup
 
-1. Connect GitHub repository to Railway
-2. Add PostgreSQL database service
-3. Set all environment variables in Railway dashboard
-4. Set RAILPACK_PYTHON_VERSION=3.11
-5. Railway auto-deploys on every git push to main
+1. Create a **Web Service** on Render and connect the GitHub repository
+2. Add a PostgreSQL database and set its connection string as `DATABASE_URL`
+3. Set all environment variables in the Render dashboard
+4. Set `PYTHON_VERSION=3.11`
+5. Start command: `gunicorn app:app`
+6. Render auto-deploys on every git push to main
 
-### Railway Cron Jobs
+### Scheduled Jobs
 
-Add these in Railway dashboard under "Cron Jobs":
+Create two Render Cron Jobs (or call the endpoints from any scheduler):
 
 ```
-*/15 * * * *   curl -H "X-Cron-Secret: YOUR_SECRET" https://your-url/cron/escalate
-0 2 * * *      curl -H "X-Cron-Secret: YOUR_SECRET" https://your-url/cron/reminders
+*/15 * * * *   curl -H "X-Cron-Secret: YOUR_SECRET" https://matrisetu-1.onrender.com/cron/escalate
+30 2 * * *     curl -H "X-Cron-Secret: YOUR_SECRET" https://matrisetu-1.onrender.com/cron/reminders
 ```
 
 (2:30 AM UTC = 8:00 AM IST)
@@ -885,7 +944,7 @@ Add these in Railway dashboard under "Cron Jobs":
 
 - Number: +1 415 523 8886
 - Join code: join kitchen-highest
-- Webhook URL: https://matrisetu-production.up.railway.app/whatsapp
+- Webhook URL: https://matrisetu-1.onrender.com/whatsapp
 
 ---
 
@@ -905,20 +964,28 @@ Add these in Railway dashboard under "Cron Jobs":
 
 ---
 
+## Future Scope
+
+1. **Lifelong patient record:** reports, scans, files, doctor visits and past medical history in one timeline, fed to the AI as context so triage is personal and safer.
+2. **Uber-style ASHA dispatch:** the nearest ASHAs (for example five) are notified at once, and the first to accept goes, with the nearest winning. If two are at the same distance, a priority score from rating, experience, workload and response history breaks the tie, so no alert is ever stuck. If nobody accepts in time, the radius widens and the alert escalates up the chain.
+3. **Built for failure:** low-confidence AI cases go to a human, SMS and offline flows keep alerts moving when the network drops, and unaccepted alerts always escalate.
+
+---
+
 ## Team
 
 | Member | Role |
 |---|---|
-| Priyancy Singal | AI Developer and Backend Engineer — WhatsApp bot, Groq AI integration, PostgreSQL, 5-tier hierarchy, analytics, NHM exports, postpartum engine, Railway deployment |
-| Tanisha Sati | Research and Product Designer — WHO/NHM medical research, UX design, solution architecture, clinical data validation |
+| Priyancy Singal | AI Developer and Backend Engineer — WhatsApp bot, Groq AI integration, PostgreSQL, 5-tier hierarchy, analytics, NHM exports, postpartum engine, Render deployment |
+| Shrishti Thakur | Research and Product Designer — WHO/NHM medical research, UX design, solution architecture, clinical data validation |
 
-**Team AIPAGLUS** — WitchHunt 2026, Health Track, AI4India / HopeWorks
+Built at **hackCBS 9.0**, a 24-hour hackathon, with **Meko** (YugabyteDB) as our memory partner.
 
 ---
 
 ## License
 
-Built during WitchHunt 2026 hackathon. All medical guidance is based on WHO, NHM, FOGSI and ICMR published guidelines. MatriSetu is a triage tool — not a medical diagnosis system. Always consult a qualified doctor for clinical decisions.
+Built during the hackCBS 9.0 hackathon. All medical guidance is based on WHO, NHM, FOGSI and ICMR published guidelines. MatriSetu is a triage tool — not a medical diagnosis system. Always consult a qualified doctor for clinical decisions.
 
 ---
 
